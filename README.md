@@ -3,7 +3,7 @@ Video Tutorial
 
 🎥 Link to the Video Tutorial: https://youtu.be/CHQ65_Y3Ga4
 
-##Overview
+## Overview
 
 Containerization has revolutionized software deployment and management, and in this tutorial, we demonstrate how to leverage the Telegram Python module and the Docker SDK to control Docker containers programmatically. By integrating the Telegram platform with Docker, you can automate container operations, monitor containers, and interact with them using a chatbot interface.
 Contents
@@ -14,7 +14,7 @@ The repository includes the following files:
     2. Tokey script to add the api token provided by botfather
     3. README.md: This README file providing an overview of the repository and the video tutorial.
 
-##Getting Started
+## Getting Started
 
 To get started with the code examples in this repository, follow these steps:
 
@@ -26,12 +26,12 @@ To get started with the code examples in this repository, follow these steps:
     Replace the placeholder values in the token script with your own API token and desired Docker configuration.
     Run the script
 
-##Applications
+## Applications
 
 The integration of the Telegram Python module and Docker SDK opens up various applications, including:
 
-    Remote container management: Control Docker containers from anywhere by sending commands via the Telegram chatbot.
-    Automation of container operations: Build scripts or bots that automatically start, stop, or restart containers based on specific events or triggers.
-    Deployment orchestration: Initiate deployments, spin up new containers, and manage container clusters through Telegram messages.
-    Monitoring and notifications: Receive real-time updates on container status, resource usage, and error alerts via Telegram, enabling prompt response to issues.
-    Interactive container management: Provide a user-friendly interface for users to interact with Docker containers through a Telegram chatbot.
+Remote container management: Control Docker containers from anywhere by sending commands via the Telegram chatbot.
+Automation of container operations: Build scripts or bots that automatically start, stop, or restart containers based on specific events or triggers.
+Deployment orchestration: Initiate deployments, spin up new containers, and manage container clusters through Telegram messages.
+Monitoring and notifications: Receive real-time updates on container status, resource usage, and error alerts via Telegram, enabling prompt response to issues.
+Interactive container management: Provide a user-friendly interface for users to interact with Docker containers through a Telegram chatbot.
