@@ -1,7 +1,16 @@
-This repository contains code examples and resources related to the video tutorial on using the Telegram Python module to control Docker containers with the Docker SDK. In the tutorial, we explore the powerful combination of these tools and discuss their applications in various scenarios.
-Video Tutorial
+# Docker SDK Telegram Bot
 
-🎥 Link to the Video Tutorial: https://youtu.be/CHQ65_Y3Ga4
+This project implements a Telegram bot that interacts with Docker containers using the Docker SDK for Python. The bot allows users to start specific containers, list containers, run test containers, and stop containers through Telegram commands.
+
+## Features
+
+- Start a specific Docker container
+- List all Docker containers
+- Stop a specific Docker container
+- Stop all Docker containers
+- Rate limiting to prevent command spam
+- Error handling and logging
+- Memory usage monitoring
 
 ## Overview
 
@@ -10,21 +19,69 @@ Contents
 
 The repository includes the following files:
 
-    1. Python script demonstrating the integration of the Telegram Python module and Docker SDK to control Docker containers. This script provides examples of retrieving container lists, stopping all containers, and running new containers with custom parameters.
-    2. Tokey script to add the api token provided by botfather
-    3. README.md: This README file providing an overview of the repository and the video tutorial.
+    1. Python script demonstrating the integration of the Telegram Python module and Docker SDK to control Docker containers. This script provides examples of retrieving container lists, stopping all containers.
+    2. README.md: This README file providing an overview of the repository and the video tutorial.
 
-## Getting Started
-
+# Getting Started
 To get started with the code examples in this repository, follow these steps:
 
-    Clone this repository to your local machine or download the code as a ZIP file.
-    Install Docker SDK and Python Telegram Library (Checked the Docker SDK and Telegram Series for more idea)
+## Prerequisites
+
+- Docker
+- Docker Compose
+
+## Installation
+
+1. Clone the repository:
+Clone this repository to your local machine or download the code as a ZIP file.
+
+```bash
+cd dockerSDK_telegeram_python
+```
+
+## Set up environment variables.
+2. Rename `.env-example` to `.env`
+
+```bash
+mv .env-example .env
+```
+
+3. And set up environment variables:
+
+    `TELEGRAM_BOT_TOKEN`= "Your Telegram Bot Token"
+    
+    `CONTAINERS_TO_SKIP`= "Comma-separated list of container names to skip (optional)"
 
 
-    Obtain a Telegram bot API token by following the instructions in the video tutorial.
-    Replace the placeholder values in the token script with your own API token and desired Docker configuration.
-    Run the script
+Note:- `CONTAINERS_TO_SKIP`: This environment variable can be set to a comma-separated list of container names that should not be affected by the bot's commands.
+
+## Docker Support
+
+To run this bot in a Docker container:
+
+1. Build the Docker image:
+```bash
+docker compose build 
+```
+2. Run the Docker container:
+```bash
+docker compose up
+```
+
+3. In Telegram, you can use the following commands:
+- `/help`: Get help and list of commands
+- `/getlist`: Get a list of all containers
+- `/start CONTAINER_NAME`: Start a specific container
+- `/stop CONTAINER_NAME`: Stop a containers
+- `/stop_all`: Stop all containers
+
+Note: Mounting `/var/run/docker.sock` allows the bot to interact with the Docker daemon on the host.
+
+## Security Considerations
+
+- Ensure that only authorized users have access to your Telegram bot.
+- Be cautious about which containers you allow the bot to control, especially in production environments.
+- Regularly review and update the `CONTAINERS_TO_SKIP` list to prevent unintended actions on critical containers.
 
 ## Applications
 
@@ -35,3 +92,7 @@ Automation of container operations: Build scripts or bots that automatically sta
 Deployment orchestration: Initiate deployments, spin up new containers, and manage container clusters through Telegram messages.
 Monitoring and notifications: Receive real-time updates on container status, resource usage, and error alerts via Telegram, enabling prompt response to issues.
 Interactive container management: Provide a user-friendly interface for users to interact with Docker containers through a Telegram chatbot.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

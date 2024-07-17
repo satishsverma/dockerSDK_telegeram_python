@@ -1,74 +1,159 @@
 import logging
-import tokenkey
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import os
+import signal
+import time
+import psutil
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 import docker
 
-client = docker.from_env()
+# Initialize Docker client with connection pooling
+client = docker.DockerClient(base_url='unix://var/run/docker.sock', max_pool_size=10)
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
-
 logger = logging.getLogger(__name__)
 
-def start(update, context):
-    """Send a message when the command /start is issued."""
-    update.message.reply_text("""Use following commands
-    /start - to get commands
-    /getlist - to get list of containers
-    /run - to run the containers
-    /stop - to stop all containers
+# Get CONTAINERS_TO_SKIP from environment variable
+containers_to_skip_str = os.getenv('CONTAINERS_TO_SKIP')
+CONTAINERS_TO_SKIP = [container.strip() for container in containers_to_skip_str.split(',')]
+
+def rate_limit_decorator(func):
+    last_request = {}
+    
+    async def wrapper(update: Update, context: CallbackContext):
+        user_id = update.effective_user.id
+        current_time = time.time()
+        
+        if user_id in last_request and current_time - last_request[user_id] < 1:
+            await update.message.reply_text("Please wait before sending another command.")
+            return
+        
+        last_request[user_id] = current_time
+        return await func(update, context)
+    
+    return wrapper
+
+@rate_limit_decorator
+async def help_command(update: Update, context: CallbackContext):
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text("""Use following commands
+    /help       - to get help
+    /getlist    - to get list of containers
+    /start      - to start a containers
+    /stop       - to stop a containers
+    /stop_all   - to stop all containers
     """)
 
-def getlist(update, context):
+@rate_limit_decorator
+async def getlist(update: Update, context: CallbackContext):
     """Send a message when the command /getlist is issued."""
+    container_names = [container.name for container in client.containers.list() if container.name not in CONTAINERS_TO_SKIP]
+    if container_names:
+        for name in container_names:
+            await update.message.reply_text(name)
+    else:
+        await update.message.reply_text("No containers available.")
+
+@rate_limit_decorator
+async def stop_all(update: Update, context: CallbackContext):
+    """Send a message when the command /stop_all is issued."""
     for container in client.containers.list():
-        update.message.reply_text(container.name)
+        if container.name not in CONTAINERS_TO_SKIP:
+            try:
+                container.stop(timeout=10)
+            except docker.errors.APIError as e:
+                logger.error(f"Error stopping container {container.name}: {e}")
+    await update.message.reply_text("All applicable containers are stopped")
 
-def run(update, context):
-    """Send a message when the command /getlist is issued."""
-    update.message.reply_text(client.containers.run("alpine", ["echo", "hello", "world"]))
+async def stop(update: Update, context: CallbackContext):
+    """Send a message when the command /stop <container_name> is issued."""
+    if context.args:
+        container_name = context.args[0]
+        if container_name not in CONTAINERS_TO_SKIP:
+            try:
+                container = client.containers.get(container_name)
+                container.stop(timeout=10)
+                await update.message.reply_text(f"Container '{container_name}' has been stopped.")
+            except docker.errors.NotFound:
+                await update.message.reply_text(f"Container '{container_name}' not found.")
+            except docker.errors.APIError as e:
+                logger.error(f"Error stopping container {container_name}: {e}")
+                await update.message.reply_text(f"Failed to stop container '{container_name}': {e}")
+        else:
+            await update.message.reply_text(f"Container '{container_name}' is in the skip list.")
+    else:
+        await update.message.reply_text("Please provide a container name to stop.")
 
-def stop(update, context):
-    """Send a message when the command /getlist is issued."""
-    for container in client.containers.list():
-        container.stop()
-    update.message.reply_text("All Containers are stopped")
+@rate_limit_decorator
+async def start(update: Update, context: CallbackContext):
+    """Send a message when the command /start <container_name> is issued."""
+    if context.args:
+        container_name = context.args[0]
+        if container_name not in CONTAINERS_TO_SKIP:
+            try:
+                container = client.containers.get(container_name)
+                container.start()
+                await update.message.reply_text(f"Container '{container_name}' has been started.")
+            except docker.errors.NotFound:
+                await update.message.reply_text(f"Container '{container_name}' not found.")
+            except docker.errors.APIError as e:
+                logger.error(f"Error stopping container {container_name}: {e}")
+                await update.message.reply_text(f"Failed to start container '{container_name}': {e}")
+        else:
+            await update.message.reply_text(f"Container '{container_name}' is in the skip list.")
+    else:
+        await update.message.reply_text("Please provide a container name to start.")
 
-def help(update, context):
-    """Send a message when the command /help is issued."""
-    update.message.reply_text('Help!')
-
-
-def echo(update, context):
+@rate_limit_decorator
+async def echo(update: Update, context: CallbackContext):
     """Echo the user message."""
-    update.message.reply_text(update.message.text)
+    await update.message.reply_text(update.message.text)
 
-
-def error(update, context):
+async def error_handler(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
+    logger.error(f"Exception while handling an update: {context.error}")
+    await update.message.reply_text("An error occurred. Please try again later.")
 
+def check_memory():
+    """Monitor memory usage"""
+    memory = psutil.virtual_memory()
+    if memory.percent > 90:
+        logger.warning("Memory usage is high: %s%%", memory.percent)
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    logger.info("Received shutdown signal, exiting...")
+    application.stop()
 
 def main():
-    updater = Updater(tokenkey.BotToken, use_context=True)
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not token:
+        raise ValueError("No token provided. Set the TELEGRAM_BOT_TOKEN environment variable.")
 
-    dp = updater.dispatcher
+    global application
+    application = Application.builder().token(token).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("getlist", getlist))
-    dp.add_handler(CommandHandler("run", run))
-    dp.add_handler(CommandHandler("stop", stop))
-    dp.add_handler(CommandHandler("help", help))
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("getlist", getlist))
+    application.add_handler(CommandHandler("stop", stop))
+    application.add_handler(CommandHandler("stop_all", stop_all))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    application.add_error_handler(error_handler)
 
+    # Set up signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-    dp.add_handler(MessageHandler(Filters.text, echo))
+    # Start the Bot
+    application.run_polling()
 
-    dp.add_error_handler(error)
-
-    updater.start_polling()
-
-    updater.idle()
-
+    # Periodically check memory
+    while True:
+        check_memory()
+        time.sleep(60)  # Check every minute
 
 if __name__ == '__main__':
     main()
