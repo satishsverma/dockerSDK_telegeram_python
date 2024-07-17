@@ -1,9 +1,9 @@
 services:
   bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: telegram-bot
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    image: satishsverma/telegram-bot
     container_name: telegram-bot
     hostname: telegram-bot
     environment:
@@ -11,4 +11,3 @@ services:
       CONTAINERS_TO_SKIP: ${CONTAINERS_TO_SKIP}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    
