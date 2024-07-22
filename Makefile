@@ -38,4 +38,11 @@ pull:
 	docker pull $(IMAGE_NAME)
 
 clean:
-	docker rmi -f $(IMAGE_NAME)
+	docker compose -f docker-compose.yml down -v \
+	&& docker rmi -f $(IMAGE_NAME)
+
+run: clean
+	docker compose -f docker-compose.yml up -d
+
+logs:
+	docker compose logs -f

@@ -39,7 +39,7 @@ async def help_command(update: Update, context: CallbackContext):
     """Send a message when the command /help is issued."""
     await update.message.reply_text("""Use following commands
     /help       - to get help
-    /getlist    - to get list of containers
+    /list    - to get list of containers
     /start      - to start a containers
     /stop       - to stop a containers
     /stop_all   - to stop all containers
@@ -47,7 +47,7 @@ async def help_command(update: Update, context: CallbackContext):
 
 @rate_limit_decorator
 async def getlist(update: Update, context: CallbackContext):
-    """Send a message when the command /getlist is issued."""
+    """Send a message when the command /list is issued."""
     container_names = [container.name for container in client.containers.list() if container.name not in CONTAINERS_TO_SKIP]
     if container_names:
         for name in container_names:
@@ -106,6 +106,37 @@ async def start(update: Update, context: CallbackContext):
         await update.message.reply_text("Please provide a container name to start.")
 
 @rate_limit_decorator
+async def get_logs(update: Update, context: CallbackContext):
+    """Send the logs of a specific container when the command /logs <container_name> -n <number_of_lines> is issued."""
+    if context.args:
+        try:
+            container_name = context.args[0]
+            num_lines = 10  # Default number of lines
+
+            if "-n" in context.args:
+                n_index = context.args.index("-n")
+                if n_index + 1 < len(context.args):
+                    try:
+                        num_lines = int(context.args[n_index + 1])
+                    except ValueError:
+                        await update.message.reply_text("Invalid number of lines. Using default of 10 lines.")
+
+            if container_name not in CONTAINERS_TO_SKIP:
+                container = client.containers.get(container_name)
+                logs = container.logs(tail=num_lines).decode('utf-8')
+                formatted_logs = '\n\t\t\t\t#---Next Line---#\n'.join(logs.splitlines())
+                await update.message.reply_text(formatted_logs)
+            else:
+                await update.message.reply_text(f"Container '{container_name}' is in the skip list.")
+        except docker.errors.NotFound:
+            await update.message.reply_text(f"Container '{container_name}' not found.")
+        except docker.errors.APIError as e:
+            logger.error(f"Error getting logs for container {container_name}: {e}")
+            await update.message.reply_text(f"Failed to get logs for container '{container_name}': {e}")
+    else:
+        await update.message.reply_text("Please provide a container name to get logs. Use /logs <container_name> -n <number_of_lines>.")
+
+@rate_limit_decorator
 async def echo(update: Update, context: CallbackContext):
     """Echo the user message."""
     await update.message.reply_text(update.message.text)
@@ -136,7 +167,8 @@ def main():
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("getlist", getlist))
+    application.add_handler(CommandHandler("list", getlist))
+    application.add_handler(CommandHandler("logs", get_logs))
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("stop_all", stop_all))
     application.add_handler(CommandHandler("help", help_command))
