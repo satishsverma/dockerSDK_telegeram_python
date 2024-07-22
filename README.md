@@ -1,11 +1,12 @@
 # Docker SDK Telegram Bot
 
-This project implements a Telegram bot that interacts with Docker containers using the Docker SDK for Python. The bot allows users to start specific containers, list containers, run test containers, and stop containers through Telegram commands.
+This project implements a Telegram bot that interacts with Docker containers using the Docker SDK for Python. The bot allows users to start specific containers, list containers, run containers, get container logs, and stop containers through Telegram commands.
 
 ## Features
 
 - Start a specific Docker container
 - List all Docker containers
+- Logs a specific Docker container
 - Stop a specific Docker container
 - Stop all Docker containers
 - Rate limiting to prevent command spam
@@ -69,12 +70,13 @@ docker compose up
 ```
 
 3. In Telegram, you can use the following commands:
-- `/help`: Get help and list of commands
-- `/list`: Get a list of all containers
-- `/start CONTAINER_NAME`: Start a specific container
-- `/logs CONTAINER_NAME -n 10` : Get container logs default 10 lines
+- `/help`: Get help and list of commands.
+- `/list`: Get a list of all containers.
+- `/start CONTAINER_NAME`: Start a specific container.
+- `/logs CONTAINER_NAME -n 10` : Get container logs default 10 lines.
 - `/stop CONTAINER_NAME`: Container name to stop or use 'all' to stop all containers.
-- `/del CONTAINER_NAME`: Delete a container
+- `/compose` - Start containers from github repo with branch.
+- `/del CONTAINER_NAME`: Delete a container.
 
 Note: Mounting `/var/run/docker.sock` allows the bot to interact with the Docker daemon on the host.
 

@@ -4,8 +4,15 @@ import signal
 import time
 import psutil
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ContextTypes
 import docker
+import requests
+import subprocess
+import tempfile
+from urllib.parse import urlparse
+from git import Repo, GitCommandError
+
+# import shutil
 
 # Initialize Docker client with connection pooling
 client = docker.DockerClient(base_url='unix://var/run/docker.sock', max_pool_size=10)
@@ -40,8 +47,10 @@ async def help_command(update: Update, context: CallbackContext):
     await update.message.reply_text("""Use following commands
     /help    - to get help
     /list    - to get list of containers
-    /start   - to start a containers
+    /start   - to start a container
+    /logs   - to get a container logs
     /stop    - to stop a containers
+    /compose - to start containers from github repo with branch
     /del     - to delete a container
     """)
 
@@ -171,6 +180,60 @@ async def delete_container(update: Update, context: CallbackContext):
         await update.message.reply_text("Please provide a container name to delete.")
 
 @rate_limit_decorator
+async def run_compose(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Run a docker-compose.yaml file from a GitHub URL."""
+    if len(context.args) < 2:
+        await update.message.reply_text("Usage: /compose <github_url> <branch>")
+        return
+
+    github_url = context.args[0]
+    branch = context.args[1]
+    
+    try:
+        # Create a temporary directory
+        temp_dir = tempfile.mkdtemp(dir='/tmp')
+        
+        # Extract the repo name from the URL
+        repo_name = os.path.splitext(os.path.basename(urlparse(github_url).path))[0]
+        print(f"repo_name:-", repo_name)
+
+        # Clone the specific branch of the repository into the temporary directory
+        Repo.clone_from(github_url, temp_dir, branch=branch)
+
+        # Construct the path to the docker-compose.yaml file
+        compose_file_path = os.path.join(temp_dir, "docker-compose.yml")
+
+        # Check if the docker-compose.yaml file exists
+        if not os.path.exists(compose_file_path):
+            await update.message.reply_text(f"No docker-compose.yml file found in the branch '{branch}'.")
+            return
+
+        # Run docker-compose in the temporary directory
+        result = subprocess.run(
+            ["docker-compose", "up", "-d"],
+            cwd=temp_dir,  # Change directory to the temporary directory
+            check=True,
+            text=True,  # Capture stdout and stderr as text
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        await update.message.reply_text(f"Docker Compose from '{github_url}' branch '{branch}' is running.\nOutput:\n{result.stdout}")
+        
+        # Cleanup the temporary directory
+        # shutil.rmtree(temp_dir)
+        
+    except GitCommandError as e:
+        logger.error(f"Git command error: {e}")
+        await update.message.reply_text(f"Failed to clone the repository: {e}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running docker-compose up: {e}\n{e.stderr}")
+        await update.message.reply_text(f"Failed to run docker-compose up: {e.stderr}")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        await update.message.reply_text(f"An unexpected error occurred: {e}")
+
+@rate_limit_decorator
 async def echo(update: Update, context: CallbackContext):
     """Echo the user message."""
     await update.message.reply_text(update.message.text)
@@ -202,9 +265,11 @@ def main():
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("list", getlist))
+    # application.add_handler(CommandHandler("run", run))
     application.add_handler(CommandHandler("logs", get_logs))
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("del", delete_container))
+    application.add_handler(CommandHandler("compose", run_compose))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
     application.add_error_handler(error_handler)
