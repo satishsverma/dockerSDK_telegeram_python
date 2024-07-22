@@ -43,6 +43,7 @@ async def help_command(update: Update, context: CallbackContext):
     /start      - to start a containers
     /stop       - to stop a containers
     /stop_all   - to stop all containers
+    /del      - to delete a container
     """)
 
 @rate_limit_decorator
@@ -112,6 +113,9 @@ async def get_logs(update: Update, context: CallbackContext):
         try:
             container_name = context.args[0]
             num_lines = 10  # Default number of lines
+            if len(container_name) < 5:
+                await update.message.reply_text("Container name must be at least 5 characters long.")
+                return
 
             if "-n" in context.args:
                 n_index = context.args.index("-n")
@@ -135,6 +139,30 @@ async def get_logs(update: Update, context: CallbackContext):
             await update.message.reply_text(f"Failed to get logs for container '{container_name}': {e}")
     else:
         await update.message.reply_text("Please provide a container name to get logs. Use /logs <container_name> -n <number_of_lines>.")
+
+@rate_limit_decorator
+async def delete_container(update: Update, context: CallbackContext):
+    """Send a message when the command /del <container_name> is issued."""
+    if context.args:
+        container_name = context.args[0]
+        if len(container_name) < 5:
+            await update.message.reply_text("Container name must be at least 5 characters long.")
+            return
+
+        if container_name not in CONTAINERS_TO_SKIP:
+            try:
+                container = client.containers.get(container_name)
+                container.remove(v=True, force=True)
+                await update.message.reply_text(f"Container '{container_name}' has been deleted.")
+            except docker.errors.NotFound:
+                await update.message.reply_text(f"Container '{container_name}' not found.")
+            except docker.errors.APIError as e:
+                logger.error(f"Error deleting container {container_name}: {e}")
+                await update.message.reply_text(f"Failed to delete container '{container_name}': {e}")
+        else:
+            await update.message.reply_text(f"Container '{container_name}' is in the skip list.")
+    else:
+        await update.message.reply_text("Please provide a container name to delete.")
 
 @rate_limit_decorator
 async def echo(update: Update, context: CallbackContext):
@@ -171,6 +199,7 @@ def main():
     application.add_handler(CommandHandler("logs", get_logs))
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("stop_all", stop_all))
+    application.add_handler(CommandHandler("del", delete_container))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
     application.add_error_handler(error_handler)
