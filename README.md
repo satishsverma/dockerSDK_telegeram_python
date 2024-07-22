@@ -75,6 +75,7 @@ docker compose up
 - `/logs CONTAINER_NAME -n 10` : Get container logs default 10 lines
 - `/stop CONTAINER_NAME`: Stop a containers
 - `/stop_all`: Stop all containers
+- `/del CONTAINER_NAME`: Delete a container
 
 Note: Mounting `/var/run/docker.sock` allows the bot to interact with the Docker daemon on the host.
 
