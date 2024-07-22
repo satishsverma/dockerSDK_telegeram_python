@@ -38,12 +38,11 @@ def rate_limit_decorator(func):
 async def help_command(update: Update, context: CallbackContext):
     """Send a message when the command /help is issued."""
     await update.message.reply_text("""Use following commands
-    /help       - to get help
+    /help    - to get help
     /list    - to get list of containers
-    /start      - to start a containers
-    /stop       - to stop a containers
-    /stop_all   - to stop all containers
-    /del      - to delete a container
+    /start   - to start a containers
+    /stop    - to stop a containers
+    /del     - to delete a container
     """)
 
 @rate_limit_decorator
@@ -57,34 +56,41 @@ async def getlist(update: Update, context: CallbackContext):
         await update.message.reply_text("No containers available.")
 
 @rate_limit_decorator
-async def stop_all(update: Update, context: CallbackContext):
-    """Send a message when the command /stop_all is issued."""
-    for container in client.containers.list():
-        if container.name not in CONTAINERS_TO_SKIP:
-            try:
-                container.stop(timeout=10)
-            except docker.errors.APIError as e:
-                logger.error(f"Error stopping container {container.name}: {e}")
-    await update.message.reply_text("All applicable containers are stopped")
-
 async def stop(update: Update, context: CallbackContext):
-    """Send a message when the command /stop <container_name> is issued."""
+    """Send a message when the command /stop <container_name> or /stop all is issued."""
     if context.args:
         container_name = context.args[0]
-        if container_name not in CONTAINERS_TO_SKIP:
-            try:
-                container = client.containers.get(container_name)
-                container.stop(timeout=10)
-                await update.message.reply_text(f"Container '{container_name}' has been stopped.")
-            except docker.errors.NotFound:
-                await update.message.reply_text(f"Container '{container_name}' not found.")
-            except docker.errors.APIError as e:
-                logger.error(f"Error stopping container {container_name}: {e}")
-                await update.message.reply_text(f"Failed to stop container '{container_name}': {e}")
+        if len(container_name) < 3:
+            await update.message.reply_text("Container name must be at least 5 characters long.")
+            return
+        if container_name == "all":
+            stopped_containers = []
+            for container in client.containers.list():
+                if container.name not in CONTAINERS_TO_SKIP:
+                    try:
+                        container.stop(timeout=10)
+                        stopped_containers.append(container.name)
+                    except docker.errors.APIError as e:
+                        logger.error(f"Error stopping container {container.name}: {e}")
+            if stopped_containers:
+                await update.message.reply_text("Stopped containers:-\n" + "\n".join(stopped_containers))
+            else:
+                await update.message.reply_text("No applicable containers to stop.")
         else:
-            await update.message.reply_text(f"Container '{container_name}' is in the skip list.")
+            if container_name not in CONTAINERS_TO_SKIP:
+                try:
+                    container = client.containers.get(container_name)
+                    container.stop(timeout=10)
+                    await update.message.reply_text(f"Container '{container_name}' has been stopped.")
+                except docker.errors.NotFound:
+                    await update.message.reply_text(f"Container '{container_name}' not found.")
+                except docker.errors.APIError as e:
+                    logger.error(f"Error stopping container {container_name}: {e}")
+                    await update.message.reply_text(f"Failed to stop container '{container_name}': {e}")
+            else:
+                await update.message.reply_text(f"Container '{container_name}' is in the skip list.")
     else:
-        await update.message.reply_text("Please provide a container name to stop.")
+        await update.message.reply_text("Please provide a container name to stop or use 'all' to stop all containers.")
 
 @rate_limit_decorator
 async def start(update: Update, context: CallbackContext):
@@ -198,7 +204,6 @@ def main():
     application.add_handler(CommandHandler("list", getlist))
     application.add_handler(CommandHandler("logs", get_logs))
     application.add_handler(CommandHandler("stop", stop))
-    application.add_handler(CommandHandler("stop_all", stop_all))
     application.add_handler(CommandHandler("del", delete_container))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
